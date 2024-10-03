@@ -1,0 +1,17 @@
+[package]
+name = "bevymud"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+async-channel = "2.3.1"
+async-net = "2.0.0"
+bevy = "0.14.2"
+diesel = { version = "2.2.4", features = ["sqlite"] }
+libmudtelnet = "2.0.1"
+
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 3
