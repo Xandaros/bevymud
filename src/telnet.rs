@@ -1,5 +1,3 @@
-use std::time::Duration;
-
 use async_channel::{Receiver, Sender, TryRecvError};
 use async_net::{TcpListener, TcpStream};
 use bevy::{
@@ -10,7 +8,8 @@ use bevy::{
 use libmudtelnet::{
     bytes::{Bytes, BytesMut},
     compatibility::CompatibilityTable,
-    events::TelnetEvents,
+    events::{TelnetEvents, TelnetIAC},
+    telnet::op_command,
 };
 use libmudtelnet::{telnet::op_option, Parser as TelnetParser};
 
@@ -19,10 +18,11 @@ pub struct TelnetPlugin;
 impl Plugin for TelnetPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Startup, startup);
-        app.add_systems(Update, (connection_handler, data_handler));
-        app.add_systems(Update, debug);
+        app.add_systems(PreUpdate, (connection_handler, data_handler));
+        app.add_systems(PostUpdate, data_sender);
         app.add_event::<NewConnection>();
         app.add_event::<MessageReceived>();
+        app.add_event::<SendMessage>();
     }
 }
 
@@ -37,7 +37,7 @@ pub struct Connection {
     _event_handler: Task<()>,
     data_receiver: Receiver<Bytes>,
     pub telnet_event_sender: Sender<TelnetEvents>,
-    pub telnet_event_receiver: Receiver<TelnetEvent>,
+    telnet_event_receiver: Receiver<TelnetEvent>,
     pub parser: TelnetParser,
 }
 
@@ -45,6 +45,41 @@ pub struct Connection {
 pub struct MessageReceived {
     pub connection: Entity,
     pub data: Bytes,
+}
+
+#[derive(Event)]
+pub struct SendMessage {
+    pub connection: Entity,
+    pub data: TelnetEvents,
+}
+
+pub trait EventWriterTelnetEx {
+    fn print(&mut self, conn: Entity, text: &str);
+
+    fn println(&mut self, conn: Entity, text: &str) {
+        self.print(conn, text);
+        self.print(conn, "\r\n");
+    }
+
+    fn ga(&mut self, conn: Entity);
+}
+
+impl<'w> EventWriterTelnetEx for EventWriter<'w, SendMessage> {
+    fn print(&mut self, conn: Entity, text: &str) {
+        self.send(SendMessage {
+            connection: conn,
+            data: TelnetEvents::DataSend(BytesMut::from(text).freeze()),
+        });
+    }
+
+    fn ga(&mut self, conn: Entity) {
+        self.send(SendMessage {
+            connection: conn,
+            data: TelnetEvents::IAC(TelnetIAC {
+                command: op_command::GA,
+            }),
+        });
+    }
 }
 
 enum TelnetEvent {
@@ -220,14 +255,10 @@ fn data_handler(
     }
 }
 
-fn debug(query: Query<&Connection>, time: Res<Time>, mut timer: Local<Timer>) {
-    if timer.mode() == TimerMode::Once {
-        timer.set_mode(TimerMode::Repeating);
-        timer.set_duration(Duration::from_secs(1));
-    }
-    timer.tick(time.delta());
-
-    if timer.just_finished() {
-        println!("Clients: {}", query.iter().len());
+fn data_sender(mut events: EventReader<SendMessage>, query: Query<&Connection>) {
+    for event in events.read() {
+        if let Ok(ent) = query.get(event.connection) {
+            let _ = ent.telnet_event_sender.try_send(event.data.clone());
+        }
     }
 }

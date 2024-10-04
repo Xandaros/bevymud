@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use bevy::{app::ScheduleRunnerPlugin, prelude::*};
-use telnet::{Connection, MessageReceived, NewConnection};
+use telnet::{EventWriterTelnetEx, MessageReceived, NewConnection, SendMessage};
 
 mod telnet;
 
@@ -18,22 +18,15 @@ fn main() {
         .run();
 }
 
-fn greet_new(mut new_conn: EventReader<NewConnection>, mut query: Query<&mut Connection>) {
+fn greet_new(mut new_conn: EventReader<NewConnection>, mut sender: EventWriter<SendMessage>) {
     for conn in new_conn.read() {
-        let entity = conn.entity;
-        if let Ok(mut connection) = query.get_mut(entity) {
-            let events = connection.parser.send_text("Hello and welcome!");
-            let _ = connection.telnet_event_sender.try_send(events);
-        }
+        sender.println(conn.entity, "Hello and welcome!");
     }
 }
 
-fn echo(mut message_event: EventReader<MessageReceived>, mut query: Query<&mut Connection>) {
+fn echo(mut message_event: EventReader<MessageReceived>, mut sender: EventWriter<SendMessage>) {
     for mess in message_event.read() {
-        if let Ok(mut connection) = query.get_mut(mess.connection) {
-            let text = String::from_utf8_lossy(&mess.data);
-            let telnet_event = connection.parser.send_text(&text);
-            let _ = connection.telnet_event_sender.try_send(telnet_event);
-        }
+        let text = String::from_utf8_lossy(&mess.data);
+        sender.print(mess.connection, &text);
     }
 }
