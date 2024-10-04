@@ -4,6 +4,7 @@ use bevy::{app::ScheduleRunnerPlugin, prelude::*};
 use libmudtelnet::telnet::op_option;
 use telnet::{EventWriterTelnetEx, MessageReceived, NewConnection, SendMessage};
 
+mod auth;
 mod telnet;
 
 fn main() {
@@ -14,6 +15,7 @@ fn main() {
             ))),
         )
         .add_plugins(telnet::TelnetPlugin)
+        .add_plugins(auth::AuthPlugin)
         .add_systems(Update, greet_new)
         .add_systems(Update, echo_control)
         .add_systems(Update, debug)

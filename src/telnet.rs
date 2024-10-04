@@ -8,7 +8,7 @@ use bevy::{
 use libmudtelnet::{
     bytes::{Bytes, BytesMut},
     compatibility::CompatibilityTable,
-    events::{TelnetEvents, TelnetIAC, TelnetNegotiation},
+    events::{TelnetEvents, TelnetNegotiation},
     telnet::op_command,
 };
 use libmudtelnet::{telnet::op_option, Parser as TelnetParser};
@@ -45,6 +45,14 @@ pub struct Connection {
 pub struct MessageReceived {
     pub connection: Entity,
     pub data: Bytes,
+}
+
+impl MessageReceived {
+    pub fn to_text(&self) -> String {
+        let mut ret = String::from_utf8_lossy(&self.data).into_owned();
+        ret.truncate(ret.len() - 2);
+        ret
+    }
 }
 
 #[derive(Event)]
