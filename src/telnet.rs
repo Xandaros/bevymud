@@ -8,7 +8,7 @@ use bevy::{
 use libmudtelnet::{
     bytes::{Bytes, BytesMut},
     compatibility::CompatibilityTable,
-    events::{TelnetEvents, TelnetIAC},
+    events::{TelnetEvents, TelnetIAC, TelnetNegotiation},
     telnet::op_command,
 };
 use libmudtelnet::{telnet::op_option, Parser as TelnetParser};
@@ -54,30 +54,54 @@ pub struct SendMessage {
 }
 
 pub trait EventWriterTelnetEx {
-    fn print(&mut self, conn: Entity, text: &str);
+    fn send_message(&mut self, conn: Entity, events: TelnetEvents);
 
-    fn println(&mut self, conn: Entity, text: &str) {
-        self.print(conn, text);
-        self.print(conn, "\r\n");
+    fn print(&mut self, conn: Entity, text: &str) {
+        self.send_message(
+            conn,
+            TelnetEvents::DataSend(libmudtelnet::Parser::escape_iac(format!("{text}"))),
+        );
     }
 
-    fn ga(&mut self, conn: Entity);
-}
-
-impl<'w> EventWriterTelnetEx for EventWriter<'w, SendMessage> {
-    fn print(&mut self, conn: Entity, text: &str) {
-        self.send(SendMessage {
-            connection: conn,
-            data: TelnetEvents::DataSend(BytesMut::from(text).freeze()),
-        });
+    fn println(&mut self, conn: Entity, text: &str) {
+        self.send_message(
+            conn,
+            TelnetEvents::DataSend(libmudtelnet::Parser::escape_iac(format!("{text}\r\n"))),
+        );
     }
 
     fn ga(&mut self, conn: Entity) {
+        self.send_message(
+            conn,
+            TelnetEvents::DataSend(Bytes::copy_from_slice(&[
+                libmudtelnet::telnet::op_command::IAC,
+                libmudtelnet::telnet::op_command::GA,
+            ])),
+        );
+    }
+
+    fn echo(&mut self, conn: Entity, echo: bool) {
+        let command = if echo {
+            op_command::WONT
+        } else {
+            op_command::WILL
+        };
+
+        self.send_message(
+            conn,
+            TelnetEvents::Negotiation(TelnetNegotiation {
+                command,
+                option: op_option::ECHO,
+            }),
+        );
+    }
+}
+
+impl<'w> EventWriterTelnetEx for EventWriter<'w, SendMessage> {
+    fn send_message(&mut self, conn: Entity, events: TelnetEvents) {
         self.send(SendMessage {
             connection: conn,
-            data: TelnetEvents::IAC(TelnetIAC {
-                command: op_command::GA,
-            }),
+            data: events,
         });
     }
 }
@@ -255,10 +279,23 @@ fn data_handler(
     }
 }
 
-fn data_sender(mut events: EventReader<SendMessage>, query: Query<&Connection>) {
+fn data_sender(mut events: EventReader<SendMessage>, mut query: Query<&mut Connection>) {
     for event in events.read() {
-        if let Ok(ent) = query.get(event.connection) {
-            let _ = ent.telnet_event_sender.try_send(event.data.clone());
+        if let Ok(mut conn) = query.get_mut(event.connection) {
+            if let TelnetEvents::Negotiation(TelnetNegotiation { command, option }) = event.data {
+                let data = match command {
+                    op_command::WILL => conn.parser._will(option),
+                    op_command::WONT => conn.parser._wont(option),
+                    op_command::DO => conn.parser._do(option),
+                    op_command::DONT => conn.parser._dont(option),
+                    _ => None,
+                };
+                if let Some(data) = data {
+                    let _ = conn.telnet_event_sender.try_send(data);
+                }
+            } else {
+                let _ = conn.telnet_event_sender.try_send(event.data.clone());
+            }
         }
     }
 }
