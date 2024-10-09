@@ -1,6 +1,11 @@
+use std::fmt::Display;
+
 use bevy::prelude::*;
 
-use crate::telnet::{EventWriterTelnetEx, MessageReceived, NewConnection, SendMessage};
+use crate::{
+    char_creation::CharCreationState,
+    telnet::{EventWriterTelnetEx, MessageReceived, NewConnection, SendMessage},
+};
 
 pub struct AuthPlugin;
 
@@ -14,8 +19,20 @@ impl Plugin for AuthPlugin {
     }
 }
 
-#[derive(Component, Reflect)]
-pub struct Username(String);
+#[derive(Component, Clone, Debug, Reflect)]
+pub struct Username(pub String);
+
+impl Display for Username {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+impl Username {
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
 
 #[derive(Component, Reflect)]
 pub struct LoggedIn;
@@ -43,10 +60,16 @@ fn request_password(
 ) {
     for message in messages.read() {
         let conn = message.connection;
-        if let Ok(()) = query.get(conn) {
+        if query.contains(conn) {
             let username = message.to_text();
 
-            commands.entity(conn).insert(Username(username));
+            commands.entity(conn).insert(Username(username.clone()));
+
+            if username.to_lowercase() == "new" {
+                commands.entity(conn).insert(CharCreationState::default());
+                println!("Inserting CharCreationState");
+                return;
+            }
 
             sender.echo(conn, false);
             sender.print(conn, "Password: ");
@@ -59,7 +82,7 @@ fn login(
     mut commands: Commands,
     mut messages: EventReader<MessageReceived>,
     mut sender: EventWriter<SendMessage>,
-    query: Query<&Username, Without<LoggedIn>>,
+    query: Query<&Username, (Without<LoggedIn>, Without<CharCreationState>)>,
 ) {
     for message in messages.read() {
         let conn = message.connection;

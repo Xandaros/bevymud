@@ -1,11 +1,14 @@
 use std::time::Duration;
 
-use bevy::{app::ScheduleRunnerPlugin, prelude::*};
-use libmudtelnet::telnet::op_option;
+use bevy::{app::ScheduleRunnerPlugin, log::LogPlugin, prelude::*};
+use char_creation::CharCreationState;
 use telnet::{EventWriterTelnetEx, MessageReceived, NewConnection, SendMessage};
 
 mod auth;
+mod char;
+mod char_creation;
 mod telnet;
+mod util;
 
 fn main() {
     App::new()
@@ -14,8 +17,14 @@ fn main() {
                 1.0 / 60.0,
             ))),
         )
+        .add_plugins(LogPlugin {
+            filter: "info,bevymud=debug".to_string(),
+            level: bevy::log::Level::DEBUG,
+            custom_layer: |_| None,
+        })
         .add_plugins(telnet::TelnetPlugin)
         .add_plugins(auth::AuthPlugin)
+        .add_plugins(char_creation::CharCreationPlugin)
         .add_systems(Update, greet_new)
         .add_systems(Update, echo_control)
         .add_systems(Update, debug)
@@ -43,7 +52,11 @@ fn echo_control(
     }
 }
 
-fn debug(query: Query<&telnet::Connection>, time: Res<Time>, mut timer: Local<Timer>) {
+fn debug(
+    query: Query<(&telnet::Connection, &auth::Username, &CharCreationState)>,
+    time: Res<Time>,
+    mut timer: Local<Timer>,
+) {
     if timer.mode() == TimerMode::Once {
         timer.set_mode(TimerMode::Repeating);
         timer.set_duration(Duration::from_secs(1));
@@ -51,8 +64,10 @@ fn debug(query: Query<&telnet::Connection>, time: Res<Time>, mut timer: Local<Ti
     timer.tick(time.delta());
 
     if timer.just_finished() {
-        for conn in query.iter() {
-            println!("{:?}", conn.parser.options.get_option(op_option::ECHO));
+        for (conn, username, state) in query.iter() {
+            // println!("{:#?}", conn);
+            // println!("{:?}", username);
+            // println!("{:?}", state);
         }
     }
 }

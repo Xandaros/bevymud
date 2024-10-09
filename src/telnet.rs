@@ -41,7 +41,19 @@ pub struct Connection {
     pub parser: TelnetParser,
 }
 
-#[derive(Event)]
+impl std::fmt::Debug for Connection {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Connection")
+            .field("_reader_task", &self._reader_task)
+            .field("_event_handler", &self._event_handler)
+            .field("data_receiver", &self.data_receiver)
+            .field("telnet_event_sender", &self.telnet_event_sender)
+            .field("telnet_event_receiver", &self.telnet_event_receiver)
+            .finish()
+    }
+}
+
+#[derive(Event, Clone)]
 pub struct MessageReceived {
     pub connection: Entity,
     pub data: Bytes,
@@ -55,7 +67,7 @@ impl MessageReceived {
     }
 }
 
-#[derive(Event)]
+#[derive(Event, Clone)]
 pub struct SendMessage {
     pub connection: Entity,
     pub data: TelnetEvents,
@@ -175,21 +187,21 @@ async fn telnet_event_handler(
 ) {
     while let Ok(event) = event_rx.recv().await {
         match event {
-            TelnetEvents::IAC(_) => println!("IAC"),
-            TelnetEvents::Negotiation(negotioation) => println!("Negotiation: {:?}", negotioation),
-            TelnetEvents::Subnegotiation(_) => println!("Subnegotiation"),
+            TelnetEvents::IAC(_) => debug!("IAC"),
+            TelnetEvents::Negotiation(negotioation) => debug!("Negotiation: {:?}", negotioation),
+            TelnetEvents::Subnegotiation(_) => debug!("Subnegotiation"),
             TelnetEvents::DataReceive(data) => {
-                println!("Data received: {:?}", data);
+                trace!("Data received: {:?}", data);
                 event_tx
                     .send(TelnetEvent::MessageReceived(data))
                     .await
                     .expect("todo");
             }
             TelnetEvents::DataSend(data) => {
-                println!("Sending data");
+                trace!("Sending data");
                 socket.write_all(&data).await.expect("todo");
             }
-            TelnetEvents::DecompressImmediate(_) => println!("Decompress"),
+            TelnetEvents::DecompressImmediate(_) => debug!("Decompress"),
         }
     }
 }
@@ -253,7 +265,7 @@ fn data_handler(
                 let events = connection.parser.receive(&data);
                 for event in events {
                     if connection.telnet_event_sender.try_send(event).is_err() {
-                        println!("Could not send telnet event");
+                        error!("Could not send telnet event");
                         todo!()
                     }
                 }
@@ -271,10 +283,12 @@ fn data_handler(
 
         match connection.telnet_event_receiver.try_recv() {
             Ok(TelnetEvent::MessageReceived(data)) => {
-                message_event.send(MessageReceived {
+                let event = MessageReceived {
                     connection: entity,
                     data,
-                });
+                };
+                message_event.send(event.clone());
+                commands.trigger_targets(event, entity);
             }
             Err(TryRecvError::Closed) => {
                 // Connection closed
