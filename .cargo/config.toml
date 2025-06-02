@@ -8,7 +8,5 @@ codegen-backend = "cranelift"
 codegen-backend = "llvm"
 
 [target.x86_64-unknown-linux-gnu]
-rustflags = [
-  # (Nightly) Make the current crate share its generic instantiations
-  "-Zshare-generics=y",
-]
+linker = "clang"
+rustflags = ["-C", "link-arg=-fuse-ld=lld", "-Zshare-generics=y"]

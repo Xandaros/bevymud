@@ -119,7 +119,7 @@ pub trait EventWriterTelnetEx {
 
 impl<'w> EventWriterTelnetEx for EventWriter<'w, SendMessage> {
     fn send_message(&mut self, conn: Entity, events: TelnetEvents) {
-        self.send(SendMessage {
+        self.write(SendMessage {
             connection: conn,
             data: events,
         });
@@ -246,7 +246,7 @@ fn connection_handler(
             parser,
         });
 
-        new_connection_event.send(NewConnection {
+        new_connection_event.write(NewConnection {
             entity: entity.id(),
         });
     }
@@ -272,7 +272,7 @@ fn data_handler(
             }
             Err(TryRecvError::Closed) => {
                 // Connection closed
-                if let Some(mut ent) = commands.get_entity(entity) {
+                if let Ok(mut ent) = commands.get_entity(entity) {
                     ent.despawn();
                 }
             }
@@ -287,12 +287,12 @@ fn data_handler(
                     connection: entity,
                     data,
                 };
-                message_event.send(event.clone());
+                message_event.write(event.clone());
                 commands.trigger_targets(event, entity);
             }
             Err(TryRecvError::Closed) => {
                 // Connection closed
-                if let Some(mut ent) = commands.get_entity(entity) {
+                if let Ok(mut ent) = commands.get_entity(entity) {
                     ent.despawn();
                 }
             }

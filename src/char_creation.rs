@@ -1,5 +1,4 @@
 use bevy::prelude::*;
-use bevy_mod_sysfail::sysfail;
 
 use crate::{
     auth::Username,
@@ -84,7 +83,7 @@ fn choose_username(
             |trigger: Trigger<MessageReceived>,
              mut commands: Commands,
              mut query: Query<(&mut CharCreation, &mut CharCreationState)>| {
-                if let Ok((mut char, mut state)) = query.get_mut(trigger.entity()) {
+                if let Ok((mut char, mut state)) = query.get_mut(trigger.target()) {
                     char.username = Some(Username(trigger.event().to_text()));
                     if char.is_complete() {
                         *state = CharCreationState::Menu
@@ -117,22 +116,22 @@ fn choose_password(
             |trigger: Trigger<MessageReceived>,
              mut commands: Commands,
              mut sender: EventWriter<SendMessage>| {
-                sender.println(trigger.entity(), "");
-                sender.print(trigger.entity(), "Confirm password: ");
-                sender.ga(trigger.entity());
+                sender.println(trigger.target(), "");
+                sender.print(trigger.target(), "Confirm password: ");
+                sender.ga(trigger.target());
 
                 let password = trigger.event().to_text();
 
-                commands.entity(trigger.entity()).observe_once(
+                commands.entity(trigger.target()).observe_once(
                     move |trigger: Trigger<MessageReceived>,
                           mut query: Query<(&mut CharCreation, &mut CharCreationState)>,
                           mut sender: EventWriter<SendMessage>| {
                         let confirm = trigger.event().to_text();
 
-                        if let Ok((mut char, mut state)) = query.get_mut(trigger.entity()) {
+                        if let Ok((mut char, mut state)) = query.get_mut(trigger.target()) {
                             if password != confirm {
-                                sender.println(trigger.entity(), "");
-                                sender.println(trigger.entity(), "Passwords do not match.");
+                                sender.println(trigger.target(), "");
+                                sender.println(trigger.target(), "Passwords do not match.");
                                 *state = CharCreationState::Password;
                             } else {
                                 char.password = Some(password.clone());
@@ -141,8 +140,8 @@ fn choose_password(
                                 } else {
                                     *state = CharCreationState::Race;
                                 }
-                                sender.println(trigger.entity(), "");
-                                sender.echo(trigger.entity(), true);
+                                sender.println(trigger.target(), "");
+                                sender.echo(trigger.target(), true);
                             }
                         }
                     },
@@ -241,12 +240,11 @@ fn choose_class(
     }
 }
 
-#[sysfail]
 fn show_menu(
     mut commands: Commands,
     query: Query<(Entity, &CharCreation, &CharCreationState), Changed<CharCreationState>>,
     mut sender: EventWriter<SendMessage>,
-) {
+) -> Result {
     for (ent, chr, state) in &query {
         if *state != CharCreationState::Menu {
             continue;
@@ -304,4 +302,5 @@ fn show_menu(
             },
         );
     }
+    Ok(())
 }

@@ -1,14 +1,12 @@
 [package]
 name = "bevymud"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 
 [dependencies]
 async-channel = "2.3.1"
 async-net = "2.0.0"
-bevy = {version = "0.15.0-dev", git = "https://github.com/bevyengine/bevy.git"}
-bevy_mod_sysfail = {version = "7.0.0", path = "vendor/bevy_mod_sysfail" }
-diesel = { version = "2.2.4", features = ["sqlite"] }
+bevy = "0.16.1"
 libmudtelnet = "2.0.1"
 
 [profile.dev]

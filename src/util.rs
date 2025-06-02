@@ -20,9 +20,12 @@ impl EntityCommandsEx for EntityCommands<'_> {
         let obs_id = obs_ent.id();
 
         let sys = IntoObserverSystem::into_system(system);
-        let mut observer = Observer::new(sys.pipe(move |_: In<()>, mut commands: Commands| {
-            commands.entity(obs_id).despawn();
-        }));
+        let mut observer = Observer::new(sys.pipe(
+            move |_: In<Result>, mut commands: Commands| -> Result {
+                commands.entity(obs_id).despawn();
+                Ok(())
+            },
+        ));
         observer = observer.with_entity(ent_id);
         obs_ent.insert(observer);
 
