@@ -32,3 +32,19 @@ impl EntityCommandsEx for EntityCommands<'_> {
         self
     }
 }
+
+pub trait FutureEx<O> {
+    async fn print_result(self) -> Result<O>;
+}
+
+impl<O, F: Future<Output = Result<O>>> FutureEx<O> for F {
+    async fn print_result(self) -> Result<O> {
+        match self.await {
+            Err(err) => {
+                print!("Task failed: {}", err);
+                Err(err)
+            }
+            Ok(v) => Ok(v),
+        }
+    }
+}

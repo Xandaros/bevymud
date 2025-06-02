@@ -7,6 +7,7 @@ use telnet::{EventWriterTelnetEx, MessageReceived, NewConnection, SendMessage};
 mod auth;
 mod char;
 mod char_creation;
+mod database;
 mod telnet;
 mod util;
 
@@ -22,9 +23,12 @@ fn main() {
             level: bevy::log::Level::DEBUG,
             custom_layer: |_| None,
         })
-        .add_plugins(telnet::TelnetPlugin)
-        .add_plugins(auth::AuthPlugin)
-        .add_plugins(char_creation::CharCreationPlugin)
+        .add_plugins((
+            telnet::TelnetPlugin,
+            auth::AuthPlugin,
+            char_creation::CharCreationPlugin,
+            database::DatabasePlugin::new("mysql://test:test@localhost/testing".to_string()),
+        ))
         .add_systems(Update, greet_new)
         .add_systems(Update, echo_control)
         .add_systems(Update, debug)
