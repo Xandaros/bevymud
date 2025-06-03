@@ -4,6 +4,7 @@ use bevy::prelude::*;
 
 use crate::{
     char_creation::CharCreationState,
+    database::DatabaseCommandsEx,
     telnet::{EventWriterTelnetEx, MessageReceived, NewConnection, SendMessage},
 };
 
@@ -90,18 +91,33 @@ fn login(
             let password = message.to_text();
 
             sender.echo(conn, true);
-
-            if password != "123456" {
-                sender.println(conn, "Invalid password.");
-                sender.print(conn, "Username: ");
-                sender.ga(conn);
-                commands.entity(conn).remove::<Username>();
-                return;
-            }
-
-            commands.entity(conn).insert(LoggedIn);
             sender.println(conn, "");
-            sender.println(conn, &format!("Logged in. Welcome {username}!"));
+
+            let username = username.to_string();
+            commands.run_sql(
+                async move |pool| {
+                    let (hash,): (Vec<u8>,) =
+                        sqlx::query_as("SELECT password FROM users WHERE username = ?")
+                            .bind(&username)
+                            .fetch_one(&pool)
+                            .await?;
+                    let hash = String::from_utf8(hash)?;
+                    Ok((username, password, hash, conn))
+                },
+                |In((username, password, hash, conn)): In<(String, String, String, Entity)>,
+                 mut commands: Commands,
+                 mut sender: EventWriter<SendMessage>| {
+                    if let Ok(true) = bcrypt::verify(password, &hash) {
+                        sender.println(conn, &format!("Logged in. Welcome {username}!"));
+                        commands.entity(conn).insert(LoggedIn);
+                    } else {
+                        sender.println(conn, "Login failed.");
+                        sender.print(conn, "Username: ");
+                        sender.ga(conn);
+                        commands.entity(conn).remove::<Username>();
+                    }
+                },
+            );
         }
     }
 }

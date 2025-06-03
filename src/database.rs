@@ -141,7 +141,7 @@ pub trait DatabaseCommandsEx {
         f: F,
         callback: impl IntoSystem<In<Out>, CBOut, CBMarker> + Send + Sync + 'static,
     ) where
-        F: Fn(sqlx::Pool<MySql>) -> Fut,
+        F: FnOnce(sqlx::Pool<MySql>) -> Fut,
         F: Send + Sync + 'static,
         Fut: Future<Output = Result<Out>> + Send + 'static,
         Out: Send + Sync + 'static,
@@ -155,7 +155,7 @@ impl DatabaseCommandsEx for Commands<'_, '_> {
         f: F,
         callback: impl IntoSystem<In<Out>, CBOut, CBMarker> + Send + Sync + 'static,
     ) where
-        F: Fn(sqlx::Pool<MySql>) -> Fut,
+        F: FnOnce(sqlx::Pool<MySql>) -> Fut,
         F: Send + Sync + 'static,
         Fut: Future<Output = Result<Out>> + Send + 'static,
         Out: Send + Sync + 'static,

@@ -3,6 +3,7 @@ use bevy::prelude::*;
 use crate::{
     auth::Username,
     char::{Class, Race},
+    database::DatabaseCommandsEx,
     telnet::{EventWriterTelnetEx, MessageReceived, SendMessage},
     util::EntityCommandsEx,
 };
@@ -249,56 +250,96 @@ fn show_menu(
         if *state != CharCreationState::Menu {
             continue;
         }
+
+        let username = chr
+            .username
+            .as_ref()
+            .map(Username::as_str)
+            .ok_or("No username on char creation menu")?;
+
+        let password = chr
+            .password
+            .as_ref()
+            .ok_or("No password on char creation menu")?;
+
+        let race = chr
+            .race
+            .as_ref()
+            .map(Race::as_str)
+            .ok_or("No race on char creation menu")?;
+
+        let class = chr
+            .class
+            .as_ref()
+            .map(Class::as_str)
+            .ok_or("No class on char creation menu")?;
+
         sender.println(ent, "");
-        sender.println(
-            ent,
-            &format!(
-                "Username: {}",
-                chr.username
-                    .as_ref()
-                    .map(Username::as_str)
-                    .ok_or("No username on char creation menu")?
-            ),
-        );
+        sender.println(ent, &format!("Username: {}", username));
         sender.println(ent, "Password: ***");
-        sender.println(
-            ent,
-            &format!(
-                "Race: {}",
-                chr.race
-                    .as_ref()
-                    .map(Race::as_str)
-                    .ok_or("No race on char creation menu")?
-            ),
-        );
-        sender.println(
-            ent,
-            &format!(
-                "Class: {}",
-                chr.class
-                    .as_ref()
-                    .map(Class::as_str)
-                    .ok_or("No class on char creation menu")?
-            ),
-        );
+        sender.println(ent, &format!("Race: {}", race));
+        sender.println(ent, &format!("Class: {}", class));
 
         sender.println(ent, "");
         sender.println(ent, "Enter CONFIRM to continue, USERNAME, PASSWORD, RACE, or CLASS to edit the respective field.");
         sender.ga(ent);
 
         commands.entity(ent).observe_once(
-            move |trigger: Trigger<MessageReceived>, mut query: Query<&mut CharCreationState>| {
-                if let Ok(mut state) = query.get_mut(ent) {
+            move |trigger: Trigger<MessageReceived>,
+                  mut commands: Commands,
+                  mut query: Query<(&mut CharCreationState, &CharCreation)>| -> Result {
+                if let Ok((mut state, chr)) = query.get_mut(ent) {
                     let input = trigger.event().to_text();
                     match input.to_lowercase().as_str() {
                         "username" => *state = CharCreationState::Username,
                         "password" => *state = CharCreationState::Password,
                         "race" => *state = CharCreationState::Race,
                         "class" => *state = CharCreationState::Class,
-                        "confirm" => todo!(),
+                        "confirm" => {
+                            let username = chr
+                                .username
+                                .as_ref()
+                                .map(Username::as_str)
+                                .ok_or("No username on char creation menu")?
+                                .to_string();
+
+                            let password = chr
+                                .password
+                                .as_ref()
+                                .ok_or("No password on char creation menu")?
+                                .to_string();
+
+                            let race = chr
+                                .race
+                                .as_ref()
+                                .map(Race::as_str)
+                                .ok_or("No race on char creation menu")?
+                                .to_string();
+
+                            let class = chr
+                                .class
+                                .as_ref()
+                                .map(Class::as_str)
+                                .ok_or("No class on char creation menu")?
+                                .to_string();
+                            commands.run_sql(async move |pool| {
+                                let hash = bcrypt::hash(password, bcrypt::DEFAULT_COST)?;
+                                let result = sqlx::query("INSERT INTO users (username, password, race, class) VALUES (?, ?, ?, ?)")
+                                    .bind(username)
+                                    .bind(hash)
+                                    .bind(race)
+                                    .bind(class)
+                                    .execute(&pool).await;
+                                if let Err(err) = result {
+                                    warn!("Character creation failed: {}", err);
+                                }
+                                Ok(())
+                            }, |_: In<()>| {});
+                        }
                         _ => *state = CharCreationState::Menu,
                     }
                 }
+                Ok(())
             },
         );
     }
