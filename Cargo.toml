@@ -7,9 +7,17 @@ edition = "2024"
 async-channel = "2.3.1"
 async-net = "2.0.0"
 bcrypt = "0.17.0"
-bevy = "0.16.1"
+bevy_yarnspinner = { path = "vendor/YarnSpinner-Rust/crates/bevy_plugin" }
 libmudtelnet = "2.0.1"
-sqlx = { version = "0.8.6", features = ["runtime-async-std", "mysql", "tls-native-tls", "migrate"] }
+# sqlx = { version = "0.8.6", features = ["runtime-async-std", "mysql", "tls-native-tls", "migrate"] }
+sqlx = { path = "vendor/sqlx", features = ["runtime-async-std", "mysql", "tls-native-tls", "migrate"] }
+
+[dependencies.bevy]
+version = "0.16.1"
+default-features = false
+features = [
+    "bevy_asset"
+]
 
 [profile.dev]
 opt-level = 1

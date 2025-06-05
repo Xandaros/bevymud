@@ -1,0 +1,23 @@
+title: System_Login_Start
+---
+<<declare $username = "">>
+<<declare $password = "">>
+Username: #prompt
+<<input username>>
+
+Password: #prompt
+<<echo false>>
+<<input password>>
+<<echo true>>
+[_][/_]
+
+<<login "{$username}" "{$password}">>
+
+<<if is_logged_in()>>
+    Login successful!
+    <<stop>>
+<<else>>
+    Login failed!
+    <<jump System_Login_Start>>
+<<endif>>
+===

@@ -1,0 +1,8 @@
+[submodule "vendor/YarnSpinner-Rust"]
+	path = vendor/YarnSpinner-Rust
+	url = https://github.com/Xandaros/YarnSpinner-Rust
+	branch = entity_functions
+[submodule "vendor/sqlx"]
+	path = vendor/sqlx
+	url = https://github.com/Xandaros/sqlx.git
+	branch = crypto_versions

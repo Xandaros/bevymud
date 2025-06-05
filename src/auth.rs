@@ -1,23 +1,74 @@
 use std::fmt::Display;
 
 use bevy::prelude::*;
+use bevy_yarnspinner::{events::ExecuteCommandEvent, prelude::*};
 
 use crate::{
-    char_creation::CharCreationState,
     database::DatabaseCommandsEx,
-    telnet::{EventWriterTelnetEx, MessageReceived, NewConnection, SendMessage},
+    menu::{EnterMenu, MenuLibrary},
+    telnet::NewConnection,
 };
 
 pub struct AuthPlugin;
 
 impl Plugin for AuthPlugin {
     fn build(&self, app: &mut App) {
-        app.register_type::<Username>();
-        app.register_type::<LoggedIn>();
-        app.add_systems(Update, request_username);
-        app.add_systems(Update, request_password);
-        app.add_systems(Update, login);
+        app.register_type::<Username>()
+            .register_type::<LoggedIn>()
+            .add_systems(Startup, register_library_functions)
+            .add_systems(Update, start_login)
+            .add_systems(Update, on_login_command.after(YarnSpinnerSystemSet));
     }
+}
+
+fn register_library_functions(mut commands: Commands, mut library: ResMut<MenuLibrary>) {
+    library.add_function("is_logged_in", commands.register_system(is_logged_in));
+}
+
+fn is_logged_in(In((entity, ())): In<(Entity, ())>, query: Query<(), With<LoggedIn>>) -> bool {
+    query.contains(entity)
+}
+
+fn start_login(mut commands: Commands, mut conns: EventReader<NewConnection>) {
+    for player in conns.read() {
+        commands
+            .entity(player.entity)
+            .trigger(EnterMenu("System_Login_Start".to_string()));
+    }
+}
+
+fn on_login_command(
+    mut events: EventReader<ExecuteCommandEvent>,
+    mut commands: Commands,
+) -> Result {
+    for event in events.read() {
+        if event.command.name != "login" {
+            return Ok(());
+        }
+
+        let username: String = (&event.command.parameters[0]).into();
+        let password: String = (&event.command.parameters[1]).into();
+        let conn = event.source;
+
+        commands.run_sql(
+            async move |pool| {
+                let (hash,): (Vec<u8>,) =
+                    sqlx::query_as("SELECT password FROM users WHERE username = ?")
+                        .bind(&username)
+                        .fetch_one(&pool)
+                        .await?;
+                let hash = String::from_utf8(hash)?;
+                Ok((username, password, hash, conn))
+            },
+            |In((username, password, hash, conn)): In<(String, String, String, Entity)>,
+             mut commands: Commands| {
+                if let Ok(true) = bcrypt::verify(password, &hash) {
+                    commands.entity(conn).insert((LoggedIn, Username(username)));
+                }
+            },
+        );
+    }
+    Ok(())
 }
 
 #[derive(Component, Clone, Debug, Reflect)]
@@ -37,87 +88,3 @@ impl Username {
 
 #[derive(Component, Reflect)]
 pub struct LoggedIn;
-
-fn request_username(
-    mut new_conn: EventReader<NewConnection>,
-    mut sender: EventWriter<SendMessage>,
-) {
-    for conn in new_conn.read() {
-        sender.println(conn.entity, "Welcome to test MUD 1234!");
-        sender.println(
-            conn.entity,
-            "Please enter you username or type NEW to create a new character",
-        );
-        sender.print(conn.entity, "Username: ");
-        sender.ga(conn.entity);
-    }
-}
-
-fn request_password(
-    mut commands: Commands,
-    mut messages: EventReader<MessageReceived>,
-    mut sender: EventWriter<SendMessage>,
-    query: Query<(), (Without<Username>, Without<LoggedIn>)>,
-) {
-    for message in messages.read() {
-        let conn = message.connection;
-        if query.contains(conn) {
-            let username = message.to_text();
-
-            commands.entity(conn).insert(Username(username.clone()));
-
-            if username.to_lowercase() == "new" {
-                commands.entity(conn).insert(CharCreationState::default());
-                println!("Inserting CharCreationState");
-                return;
-            }
-
-            sender.echo(conn, false);
-            sender.print(conn, "Password: ");
-            sender.ga(conn);
-        }
-    }
-}
-
-fn login(
-    mut commands: Commands,
-    mut messages: EventReader<MessageReceived>,
-    mut sender: EventWriter<SendMessage>,
-    query: Query<&Username, (Without<LoggedIn>, Without<CharCreationState>)>,
-) {
-    for message in messages.read() {
-        let conn = message.connection;
-        if let Ok(Username(username)) = query.get(conn) {
-            let password = message.to_text();
-
-            sender.echo(conn, true);
-            sender.println(conn, "");
-
-            let username = username.to_string();
-            commands.run_sql(
-                async move |pool| {
-                    let (hash,): (Vec<u8>,) =
-                        sqlx::query_as("SELECT password FROM users WHERE username = ?")
-                            .bind(&username)
-                            .fetch_one(&pool)
-                            .await?;
-                    let hash = String::from_utf8(hash)?;
-                    Ok((username, password, hash, conn))
-                },
-                |In((username, password, hash, conn)): In<(String, String, String, Entity)>,
-                 mut commands: Commands,
-                 mut sender: EventWriter<SendMessage>| {
-                    if let Ok(true) = bcrypt::verify(password, &hash) {
-                        sender.println(conn, &format!("Logged in. Welcome {username}!"));
-                        commands.entity(conn).insert(LoggedIn);
-                    } else {
-                        sender.println(conn, "Login failed.");
-                        sender.print(conn, "Username: ");
-                        sender.ga(conn);
-                        commands.entity(conn).remove::<Username>();
-                    }
-                },
-            );
-        }
-    }
-}

@@ -3,15 +3,15 @@ use async_net::{TcpListener, TcpStream};
 use bevy::{
     asset::{AsyncReadExt, AsyncWriteExt},
     prelude::*,
-    tasks::{futures_lite::StreamExt, IoTaskPool, Task},
+    tasks::{IoTaskPool, Task, futures_lite::StreamExt},
 };
+use libmudtelnet::{Parser as TelnetParser, telnet::op_option};
 use libmudtelnet::{
     bytes::{Bytes, BytesMut},
     compatibility::CompatibilityTable,
     events::{TelnetEvents, TelnetNegotiation},
     telnet::op_command,
 };
-use libmudtelnet::{telnet::op_option, Parser as TelnetParser};
 
 pub struct TelnetPlugin;
 
@@ -62,7 +62,11 @@ pub struct MessageReceived {
 impl MessageReceived {
     pub fn to_text(&self) -> String {
         let mut ret = String::from_utf8_lossy(&self.data).into_owned();
-        ret.truncate(ret.len() - 2);
+        if ret.ends_with("\r\n") {
+            ret.truncate(ret.len().saturating_sub(2));
+        } else if ret.ends_with("\r") || ret.ends_with("\n") {
+            ret.truncate(ret.len().saturating_sub(1));
+        }
         ret
     }
 }
