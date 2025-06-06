@@ -146,7 +146,7 @@ fn on_input(
     let var = &waiter.var;
     runner
         .variable_storage_mut()
-        .set(format!("${}", var), trigger.to_text().into())?;
+        .set(var.to_string(), trigger.to_text().into())?;
 
     commands.entity(trigger.target()).remove::<WaitingOnInput>();
 

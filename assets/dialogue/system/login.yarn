@@ -3,11 +3,11 @@ title: System_Login_Start
 <<declare $username = "">>
 <<declare $password = "">>
 Username: #prompt
-<<input username>>
+<<input $username>>
 
 Password: #prompt
 <<echo false>>
-<<input password>>
+<<input $password>>
 <<echo true>>
 [_][/_]
 
