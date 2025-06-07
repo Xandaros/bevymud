@@ -16,7 +16,13 @@ pub struct MenuPlugin;
 impl Plugin for MenuPlugin {
     fn build(&self, app: &mut App) {
         app.add_event::<EnterMenu>()
-            .insert_resource(MenuLibrary(YarnLibrary::new()))
+            .insert_resource(MenuLibrary({
+                let mut library = YarnLibrary::new();
+
+                library.add_function("lower", |x: &str| x.to_lowercase());
+
+                library
+            }))
             .add_observer(on_enter_menu)
             .add_observer(on_input)
             .add_systems(

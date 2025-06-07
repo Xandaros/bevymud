@@ -1,9 +1,19 @@
 title: System_Login_Start
 ---
+<<declare $error = "">>
 <<declare $username = "">>
 <<declare $password = "">>
+
+Welcome! Enter your username to login, or enter NEW to register a new account.
+
 Username: #prompt
 <<input $username>>
+
+<<if lower($username) == "new">>
+    <<jump System_Registration_Start>>
+<<elseif $username == "">>
+    <<jump System_Login_Start>>
+<<endif>>
 
 Password: #prompt
 <<echo false>>

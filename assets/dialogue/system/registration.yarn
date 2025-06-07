@@ -1,0 +1,52 @@
+title: System_Registration_Start
+---
+<<declare $password_confirm = "">>
+<<jump System_Registration_Username>>
+===
+
+title: System_Registration_Username
+---
+Choose a username. Provide an empty one to return to the login screen.
+Username: #prompt
+<<input $username>>
+
+<<if $username == "">>
+    <<jump System_Login_Start>>
+<<endif>>
+<<jump System_Registration_Password>>
+===
+
+title: System_Registration_Password
+---
+Choose a password. Provide an empty one to return to the login screen.
+Password: #prompt
+<<echo false>>
+<<input $password>>
+<<echo true>>
+[_][/_]
+<<if $password == "">>
+    <<jump System_Login_Start>>
+<<endif>>
+Confirm password: #prompt
+<<echo false>>
+<<input $password_confirm>>
+[_][/_]
+<<echo true>>
+
+<<if $password != $password_confirm>>
+    Your passwords do not match.
+    <<jump System_Registration_Password>>
+<<endif>>
+
+<<register_account "{$username}" "{$password}">>
+
+<<if $error == "Error">>
+    An error occured. Please try again.
+    <<jump System_Registration_Start>>
+<<elseif $error == "AccountExists">>
+    An account with this username already exists.
+    <<jump System_Registration_Start>>
+<<endif>>
+
+{is_logged_in()}
+===

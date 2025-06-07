@@ -1,0 +1,86 @@
+{
+    "$schema": "https://raw.githubusercontent.com/YarnSpinnerTool/YarnSpinner/refs/heads/main/YarnSpinner.LanguageServer/src/Server/Documentation/ysls.schema.json",
+    "Commands": [
+        {
+            "YarnName": "echo",
+            "Language": "rust",
+            "DefinitionName": "handle_echo_command",
+            "FileName": "menu.rs",
+            "Documentation": "Enable/Disable input echoing on the client",
+            "Parameters": [{
+                "Name": "enable",
+                "Type": "bool"
+            }]
+        },
+        {
+            "YarnName": "input",
+            "Language": "rust",
+            "DefinitionName": "handle_input_command",
+            "FileName": "menu.rs",
+            "Documentation": "Read one line of input from the user",
+            "Parameters": [
+                {
+                    "Name": "variable",
+                    "Type": "string",
+                    "Documentation": "Variable in which to place the input"
+                }
+            ]
+        },
+        {
+            "YarnName": "login",
+            "Language": "rust",
+            "DefinitionName": "on_login_command",
+            "FileName": "auth.rs",
+            "Documentation": "Log in the user with the given username and password",
+            "Parameters": [
+                {
+                    "Name": "username",
+                    "Type": "string"
+                },
+                {
+                    "Name": "password",
+                    "Type": "string"
+                }
+            ]
+        },
+        {
+            "YarnName": "register_account",
+            "Language": "rust",
+            "DefinitionName": "on_register_account_command",
+            "FileName": "auth.rs",
+            "Documentation": "Register a new account with the given username and password. Will set $error to either \"\", \"AccountExists\", or \"Error\"",
+            "Parameters": [
+                {
+                    "Name": "username",
+                    "Type": "string"
+                },
+                {
+                    "Name": "password",
+                    "Type": "string"
+                }
+            ]
+        }
+    ],
+    "Functions": [
+        {
+            "YarnName": "lower",
+            "FileName": "menu.rs",
+            "Language": "rust",
+            "Documentation": "Turns a string into all lowercase",
+            "ReturnType": "string",
+            "Parameters": [{
+                "Name": "s",
+                "Type": "string"
+            }]
+        },
+        {
+            "YarnName": "is_logged_in",
+            "DefinitionName": "is_logged_in",
+            "FileName": "auth.rs",
+            "Language": "rust",
+            "Documentation": "Returns whether the user is logged in",
+            "ReturnType": "bool",
+            "Parameters": []
+        }
+    ]
+}
