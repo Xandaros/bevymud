@@ -46,6 +46,8 @@ Confirm password: #prompt
 <<elseif $error == "AccountExists">>
     An account with this username already exists.
     <<jump System_Registration_Start>>
+<<else>>
+    <<jump System_CharSelection_Start>>
 <<endif>>
 
 {is_logged_in()}

@@ -7,8 +7,10 @@ use telnet::{EventWriterTelnetEx, MessageReceived, NewConnection, SendMessage};
 mod auth;
 mod char;
 mod char_creation;
+mod class;
 mod database;
 mod menu;
+mod race;
 mod telnet;
 mod util;
 
@@ -28,6 +30,8 @@ fn main() {
         })
         .add_plugins((
             telnet::TelnetPlugin,
+            race::RacePlugin,
+            class::ClassPlugin,
             auth::AuthPlugin,
             char_creation::CharCreationPlugin,
             database::DatabasePlugin::new("mysql://test:test@localhost/testing".to_string()),

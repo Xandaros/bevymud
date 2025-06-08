@@ -25,7 +25,7 @@ Password: #prompt
 
 <<if is_logged_in()>>
     Login successful!
-    <<stop>>
+    <<jump System_CharSelection_Start>>
 <<else>>
     Login failed!
     <<jump System_Login_Start>>

@@ -16,13 +16,16 @@ impl DatabasePlugin {
     }
 }
 
+#[derive(SystemSet, Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct DatabaseSystemSet;
+
 impl Plugin for DatabasePlugin {
     fn build(&self, app: &mut App) {
         app.insert_resource(DatabaseConfig {
             uri: self.uri.clone(),
         });
-        app.add_systems(PreStartup, setup);
-        app.add_systems(PreUpdate, sql_callbacks);
+        app.add_systems(PreStartup, setup.in_set(DatabaseSystemSet));
+        app.add_systems(PreUpdate, sql_callbacks.in_set(DatabaseSystemSet));
     }
 }
 

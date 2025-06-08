@@ -1,0 +1,22 @@
+title: System_CharSelection_Start
+---
+<<declare $system_charselection_char = "">>
+Select your character or type NEW to create a new one
+<<print_char_selection>>
+<<if $error != "">>
+    An error occured while trying to load your characters.
+    <<jump System_Login_Start>>
+<<endif>>
+<<input $system_charselection_char>>
+
+<<if lower($system_charselection_char) == "new">>
+    <<jump System_CharSelection_New>>
+<<else>>
+    <<choose_char $system_charselection_char>>
+<<endif>>
+===
+
+title: System_CharSelection_New
+---
+<<stop>>
+===

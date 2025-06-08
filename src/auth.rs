@@ -7,9 +7,11 @@ use bevy::prelude::*;
 use bevy_yarnspinner::{events::ExecuteCommandEvent, prelude::*};
 
 use crate::{
+    class::Classes,
     database::DatabaseCommandsEx,
     menu::{EnterMenu, MenuLibrary},
-    telnet::{Connection, NewConnection},
+    race::Races,
+    telnet::{Connection, EventWriterTelnetEx, NewConnection, SendMessage},
 };
 
 pub struct AuthPlugin;
@@ -22,7 +24,12 @@ impl Plugin for AuthPlugin {
             .add_systems(Update, start_login)
             .add_systems(
                 Update,
-                (on_login_command, on_register_account_command).after(YarnSpinnerSystemSet),
+                (
+                    on_login_command,
+                    on_register_account_command,
+                    on_print_char_selection_command,
+                )
+                    .after(YarnSpinnerSystemSet),
             );
     }
 }
@@ -64,23 +71,31 @@ fn on_login_command(
 
         commands.run_sql(
             async move |pool| {
-                let Ok((hash,)): Result<(Vec<u8>,), sqlx::Error> =
-                    sqlx::query_as("SELECT password FROM users WHERE username = ?")
+                let Ok((acc_id, hash)): Result<(u64, Vec<u8>), sqlx::Error> =
+                    sqlx::query_as("SELECT id, password FROM users WHERE username = ?")
                         .bind(&username)
                         .fetch_one(&pool)
                         .await
                 else {
-                    return Ok((username, "".to_string(), "".to_string(), conn));
+                    return Ok((u64::MAX, username, "".to_string(), "".to_string(), conn));
                 };
                 let hash = String::from_utf8(hash)?;
-                Ok((username, password, hash, conn))
+                Ok((acc_id, username, password, hash, conn))
             },
-            move |In((username, password, hash, conn)): In<(String, String, String, Entity)>,
+            move |In((acc_id, username, password, hash, conn)): In<(
+                u64,
+                String,
+                String,
+                String,
+                Entity,
+            )>,
                   mut commands: Commands|
                   -> Result {
                 if hash != "" {
                     if let Ok(true) = bcrypt::verify(password, &hash) {
-                        commands.entity(conn).insert((LoggedIn, Username(username)));
+                        commands
+                            .entity(conn)
+                            .insert((LoggedIn(acc_id), Username(username)));
                     }
                 }
                 *finished.write().map_err(|_| "Poisoned RwLock")? = true;
@@ -92,12 +107,13 @@ fn on_login_command(
 }
 
 struct RegistrationResult {
-    error: Option<RegistrationError>,
+    error: RegistrationError,
     entity: Entity,
     username: String,
 }
 
 enum RegistrationError {
+    Success(u64),
     AccountExists,
     SQLError,
 }
@@ -138,7 +154,7 @@ fn on_register_account_command(
                     Ok(x) => x,
                     Err(err) => {
                         return Ok(RegistrationResult {
-                            error: Some(err.into()),
+                            error: err.into(),
                             entity: conn,
                             username,
                         });
@@ -147,30 +163,30 @@ fn on_register_account_command(
 
                 if exists {
                     return Ok(RegistrationResult {
-                        error: Some(RegistrationError::AccountExists),
+                        error: RegistrationError::AccountExists,
                         entity: conn,
                         username,
                     });
                 }
 
-                match sqlx::query("INSERT INTO users(username, password) VALUES(?, ?)")
+                let acc_id = match sqlx::query("INSERT INTO users(username, password) VALUES(?, ?)")
                     .bind(&username)
                     .bind(bcrypt::hash(&password, bcrypt::DEFAULT_COST)?)
                     .execute(&pool)
                     .await
                 {
-                    Ok(_) => (),
+                    Ok(res) => res.last_insert_id(),
                     Err(err) => {
                         return Ok(RegistrationResult {
-                            error: Some(err.into()),
+                            error: err.into(),
                             entity: conn,
                             username,
                         });
                     }
-                }
+                };
 
                 Ok(RegistrationResult {
-                    error: None,
+                    error: RegistrationError::Success(acc_id),
                     entity: conn,
                     username,
                 })
@@ -182,30 +198,109 @@ fn on_register_account_command(
                 let mut runner = query.get_mut(result.entity)?;
 
                 match &result.error {
-                    Some(RegistrationError::AccountExists) => {
+                    RegistrationError::AccountExists => {
                         runner.variable_storage_mut().set(
                             "$error".to_string(),
                             YarnValue::String("AccountExists".to_string()),
                         )?;
                     }
-                    Some(RegistrationError::SQLError) => {
+                    RegistrationError::SQLError => {
                         runner
                             .variable_storage_mut()
                             .set("$error".to_string(), YarnValue::String("Error".to_string()))?;
                     }
-                    None => {
+                    RegistrationError::Success(acc_id) => {
                         runner
                             .variable_storage_mut()
                             .set("$error".to_string(), YarnValue::String("".to_string()))?;
 
+                        let acc_id = *acc_id;
                         commands
                             .entity(result.entity)
-                            .insert((Username(result.0.username), LoggedIn));
+                            .insert((Username(result.0.username), LoggedIn(acc_id)));
                     }
                 }
 
                 *finished.write().map_err(|_| "Poisoned RwLock")? = true;
 
+                Ok(())
+            },
+        );
+    }
+    Ok(())
+}
+
+fn on_print_char_selection_command(
+    mut events: EventReader<ExecuteCommandEvent>,
+    mut commands: Commands,
+    mut query: Query<(&mut DialogueRunner, &LoggedIn)>,
+) -> Result {
+    for event in events.read() {
+        if event.command.name != "print_char_selection" {
+            continue;
+        }
+
+        let conn = event.source;
+
+        let (mut runner, acc_id) = query.get_mut(conn)?;
+
+        let acc_id = acc_id.0;
+
+        let finished = Arc::new(RwLock::new(false));
+        let sql_finished = Arc::clone(&finished);
+        runner.add_command_task(Box::new(Arc::clone(&finished)));
+
+        commands.run_sql(
+            async move |pool| {
+                //let Ok(res): Result<Vec<(String, u64, u64)>, sqlx::Error> = sqlx::query_as(
+                let res = match sqlx::query_as(
+                    "SELECT name, race, class FROM characters WHERE account = ? ORDER BY id",
+                )
+                .bind(acc_id)
+                .fetch_all(&pool)
+                .await
+                {
+                    Err(err) => {
+                        warn!("SQL query failed: {err}");
+                        *sql_finished.write().map_err(|_| "Poisoned RwLock")? = true;
+                        return Ok((conn, None));
+                    }
+                    Ok(res) => res,
+                };
+                Ok((conn, Some(res)))
+            },
+            move |In((conn, chars)): In<(Entity, Option<Vec<(String, u64, u64)>>)>,
+                  classes: Res<Classes>,
+                  races: Res<Races>,
+                  mut sender: EventWriter<SendMessage>,
+                  mut query: Query<&mut DialogueRunner, With<Connection>>|
+                  -> Result {
+                let mut runner = query.get_mut(conn)?;
+
+                let Some(chars) = chars else {
+                    runner
+                        .variable_storage_mut()
+                        .set("$error".to_string(), "Error".into())?;
+                    *finished.write().map_err(|_| "Poisoned RwLock")? = true;
+                    return Ok(());
+                };
+                runner
+                    .variable_storage_mut()
+                    .set("$error".to_string(), "".into())?;
+
+                for (i, char) in chars.iter().enumerate() {
+                    let name = &char.0;
+                    let race = races.get_race(char.1);
+                    let class = classes.get_class(char.2);
+
+                    sender.print(conn, &format!("{}: ", i + 1));
+                    sender.print(conn, name);
+                    sender.print(conn, " - ");
+                    sender.print(conn, &race.name);
+                    sender.print(conn, " ");
+                    sender.println(conn, &class.name);
+                }
+                *finished.write().map_err(|_| "Poisoned RwLock")? = true;
                 Ok(())
             },
         );
@@ -229,4 +324,4 @@ impl Username {
 }
 
 #[derive(Component, Reflect)]
-pub struct LoggedIn;
+pub struct LoggedIn(u64);
