@@ -37,7 +37,7 @@ impl Plugin for AuthPlugin {
 }
 
 #[derive(Clone, Debug, Event)]
-struct CharacterLoginEvent {
+pub struct CharacterLoginEvent {
     pub name: String,
     pub account: u64,
     pub class: u64,
@@ -294,13 +294,13 @@ fn on_choose_char_command(
                     return;
                 };
 
-                commands.trigger(CharacterLoginEvent {
+                commands.trigger_targets(CharacterLoginEvent {
                     name: name.clone(),
                     account: acc_id,
                     class,
                     race,
                     room: room as u64,
-                });
+                }, conn);
             },
         );
     }

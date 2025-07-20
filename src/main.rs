@@ -10,7 +10,9 @@ mod char_creation;
 mod class;
 mod database;
 mod menu;
+mod misc;
 mod race;
+mod room;
 mod telnet;
 mod util;
 
@@ -36,6 +38,8 @@ fn main() {
             char_creation::CharCreationPlugin,
             database::DatabasePlugin::new("mysql://test:test@localhost/testing".to_string()),
             menu::MenuPlugin,
+            room::RoomPlugin,
+            misc::MiscPlugin,
         ))
         .add_systems(Update, greet_new)
         .add_systems(Update, echo_control)
