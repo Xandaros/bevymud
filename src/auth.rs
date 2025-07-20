@@ -20,6 +20,7 @@ impl Plugin for AuthPlugin {
     fn build(&self, app: &mut App) {
         app.register_type::<Username>()
             .register_type::<LoggedIn>()
+            .add_event::<CharacterLoginEvent>()
             .add_systems(Startup, register_library_functions)
             .add_systems(Update, start_login)
             .add_systems(
@@ -28,10 +29,20 @@ impl Plugin for AuthPlugin {
                     on_login_command,
                     on_register_account_command,
                     on_print_char_selection_command,
+                    on_choose_char_command,
                 )
                     .after(YarnSpinnerSystemSet),
             );
     }
+}
+
+#[derive(Clone, Debug, Event)]
+struct CharacterLoginEvent {
+    pub name: String,
+    pub account: u64,
+    pub class: u64,
+    pub race: u64,
+    pub room: u64,
 }
 
 fn register_library_functions(mut commands: Commands, mut library: ResMut<MenuLibrary>) {
@@ -224,6 +235,72 @@ fn on_register_account_command(
                 *finished.write().map_err(|_| "Poisoned RwLock")? = true;
 
                 Ok(())
+            },
+        );
+    }
+    Ok(())
+}
+
+fn on_choose_char_command(
+    mut events: EventReader<ExecuteCommandEvent>,
+    mut commands: Commands,
+    mut query: Query<(&DialogueRunner, &LoggedIn)>,
+) -> Result {
+    for event in events.read() {
+        if event.command.name != "choose_char" {
+            continue;
+        }
+
+        let conn = event.source;
+
+        let (runner, acc_id) = query.get(conn)?;
+        let acc_id = acc_id.0;
+
+        let Some(selection) = event.command.parameters.get(0) else {
+            // TODO: No selection
+            debug!("No selection");
+            return Ok(());
+        };
+
+        let YarnValue::String(selection) = selection.clone() else {
+            // TODO: Not a string???
+            debug!("Not a string???");
+            return Ok(());
+        };
+
+        let Ok(selection) = selection.trim().parse::<u32>() else {
+            // TODO: Nor parseable
+            debug!("Not parseable");
+            return Ok(());
+        };
+
+        commands.run_sql(
+            async move |pool| {
+                Ok(
+                    sqlx::query_as(
+                        "SELECT name, race, class, room FROM characters WHERE account = ? ORDER BY id ASC LIMIT ?, 1",
+                    )
+                    .bind(acc_id)
+                    .bind(selection.saturating_sub(1))
+                    .fetch_one(&pool)
+                    .await
+                    .map_err(Into::<BevyError>::into)
+                )
+            },
+            move |res: In<Result<(String, u64, u64, u64)>>, mut commands: Commands| {
+                let Ok((ref name, race, class, room)) = *res else {
+                    // TODO: Invalid character
+                    debug!("Invalid character");
+                    return;
+                };
+
+                commands.trigger(CharacterLoginEvent {
+                    name: name.clone(),
+                    account: acc_id,
+                    class,
+                    race,
+                    room: room as u64,
+                });
             },
         );
     }
