@@ -2,11 +2,7 @@ use std::time::Duration;
 
 use bevy::{
     app::ScheduleRunnerPlugin,
-    ecs::{
-        archetype::Archetype,
-        component::ComponentId,
-        world::{DeferredWorld, DynamicComponentFetch},
-    },
+    ecs::{archetype::Archetype, world::DeferredWorld},
     log::LogPlugin,
     prelude::*,
 };
@@ -23,6 +19,7 @@ mod database;
 mod menu;
 mod misc;
 mod player_commands;
+mod player_movement;
 mod race;
 mod telnet;
 mod util;
@@ -52,6 +49,7 @@ fn main() {
             menu::MenuPlugin,
             misc::MiscPlugin,
             player_commands::PlayerCommandsPlugin,
+            player_movement::PlayerMovementPlugin,
             world::WorldPlugin,
         ))
         .add_systems(Update, greet_new)

@@ -9,6 +9,7 @@ async-net = "2.0.0"
 bcrypt = "0.17.0"
 bevy_yarnspinner = { path = "vendor/YarnSpinner-Rust/crates/bevy_plugin" }
 libmudtelnet = "2.0.1"
+phf = { version = "0.12.1", features = ["macros"] }
 # sqlx = { version = "0.8.6", features = ["runtime-async-std", "mysql", "tls-native-tls", "migrate"] }
 sqlx = { path = "vendor/sqlx", features = ["runtime-async-std", "mysql", "tls-native-tls", "migrate"] }
 
