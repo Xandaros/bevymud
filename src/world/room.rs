@@ -1,5 +1,4 @@
 use bevy::prelude::*;
-use libmudtelnet::events::TelnetEvents;
 
 use crate::{
     auth::CharacterLoginEvent,
@@ -13,19 +12,8 @@ impl Plugin for RoomPlugin {
     fn build(&self, app: &mut App) {
         app.register_type::<Room>()
             .add_observer(on_login)
-            .add_observer(room_enter_description)
-            .add_systems(Startup, insert_test_rooms);
+            .add_observer(room_enter_description);
     }
-}
-
-fn insert_test_rooms(mut commands: Commands) {
-    commands.spawn((
-        Room,
-        Name::new("Test"),
-        Description::new("A simple room. Nothing to see here."),
-        Id(1),
-        RoomContents(Vec::new()),
-    ));
 }
 
 fn on_login(

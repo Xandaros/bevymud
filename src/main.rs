@@ -1,7 +1,18 @@
 use std::time::Duration;
 
-use bevy::{app::ScheduleRunnerPlugin, log::LogPlugin, prelude::*};
+use bevy::{
+    app::ScheduleRunnerPlugin,
+    ecs::{
+        archetype::Archetype,
+        component::ComponentId,
+        world::{DeferredWorld, DynamicComponentFetch},
+    },
+    log::LogPlugin,
+    prelude::*,
+};
 use bevy_yarnspinner::prelude::*;
+use libmudtelnet::events::TelnetEvents;
+use player_commands::ExplorationCommandEvent;
 use telnet::{EventWriterTelnetEx, MessageReceived, NewConnection, SendMessage};
 
 mod auth;
@@ -11,10 +22,11 @@ mod class;
 mod database;
 mod menu;
 mod misc;
+mod player_commands;
 mod race;
-mod room;
 mod telnet;
 mod util;
+mod world;
 
 fn main() {
     App::new()
@@ -38,11 +50,14 @@ fn main() {
             char_creation::CharCreationPlugin,
             database::DatabasePlugin::new("mysql://test:test@localhost/testing".to_string()),
             menu::MenuPlugin,
-            room::RoomPlugin,
             misc::MiscPlugin,
+            player_commands::PlayerCommandsPlugin,
+            world::WorldPlugin,
         ))
         .add_systems(Update, greet_new)
         .add_systems(Update, echo_control)
+        .add_observer(quit_command)
+        .add_observer(debug_command)
         .run();
 }
 
@@ -50,6 +65,64 @@ fn greet_new(mut new_conn: EventReader<NewConnection>, mut sender: EventWriter<S
     for conn in new_conn.read() {
         sender.println(conn.entity, "Hello and welcome!");
         sender.ga(conn.entity);
+    }
+}
+
+fn quit_command(trigger: Trigger<ExplorationCommandEvent>, mut commands: Commands) {
+    if trigger.command == "quit" {
+        commands.entity(trigger.target()).despawn();
+    }
+}
+
+fn debug_command(trigger: Trigger<ExplorationCommandEvent>, mut world: DeferredWorld) {
+    if trigger.command != "debug" {
+        return;
+    }
+
+    let conn = trigger.target();
+
+    let mut events = Vec::new();
+
+    for entity in world.iter_entities() {
+        events.push(SendMessage {
+            connection: conn,
+            data: TelnetEvents::DataSend(libmudtelnet::Parser::escape_iac(format!(
+                "\n\x1b[38;5;1m{}\x1b[0m\n",
+                entity.id()
+            ))),
+        });
+
+        let archetype = entity.components::<&Archetype>();
+
+        for component in archetype.components() {
+            let Some(name) = world.components().get_name(component) else {
+                continue;
+            };
+
+            let mut value = String::new();
+            if let Some(info) = world.components().get_info(component) {
+                if let Some(type_id) = info.type_id() {
+                    if let Ok(val) = world.get_reflect(entity.id(), type_id) {
+                        value = format!(": {:#?}", val);
+                    }
+                }
+            }
+
+            events.push(SendMessage {
+                connection: conn,
+                data: TelnetEvents::DataSend(libmudtelnet::Parser::escape_iac(format!(
+                    "{}{}\n",
+                    &name[name.rfind(":").map(|x| x + 1).unwrap_or(0)..],
+                    value
+                ))),
+            });
+
+            //world.get_reflect(entity.id(), component.into());
+        }
+    }
+
+    for event in events {
+        world.send_event(event);
     }
 }
 
