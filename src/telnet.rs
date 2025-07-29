@@ -141,7 +141,7 @@ pub struct NewConnection {
 
 /// Listens to incoming connections and sends the stream to `sender`
 async fn connection_listener(sender: Sender<TcpStream>) {
-    let listener = TcpListener::bind("127.0.0.1:2222")
+    let listener = TcpListener::bind("0.0.0.0:2222")
         .await
         .expect("Could not open socket");
     let mut incoming = listener.incoming();
