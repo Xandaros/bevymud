@@ -3,6 +3,7 @@ use bevy::prelude::*;
 use crate::{
     auth::CharacterLoginEvent,
     misc::{Description, Id},
+    player_commands::ExplorationCommandEvent,
     telnet::{Connection, EventWriterTelnetEx, SendMessageAction},
 };
 
@@ -13,6 +14,8 @@ impl Plugin for RoomPlugin {
         app.register_type::<Room>()
             .add_observer(on_login)
             .add_observer(on_move_room_action)
+            .add_observer(on_show_room_description_action)
+            .add_observer(on_look_command)
             .add_observer(room_enter_description);
     }
 }
@@ -34,7 +37,9 @@ fn on_login(
         return;
     };
 
-    commands.entity(trigger.target()).insert(InRoom(room));
+    let mut entity = commands.entity(trigger.target());
+    entity.insert(InRoom(room));
+    entity.insert(Name::new(trigger.name.clone()));
     commands.trigger_targets(
         EnterRoomEvent {
             entity: trigger.target(),
@@ -52,26 +57,69 @@ fn on_move_room_action(trigger: Trigger<MoveRoomAction>, mut commands: Commands)
     Ok(())
 }
 
-fn room_enter_description(
-    trigger: Trigger<EnterRoomEvent>,
-    player_query: Query<&Connection>,
-    room_query: Query<(&Name, &Description), With<Room>>,
+fn room_enter_description(trigger: Trigger<EnterRoomEvent>, mut commands: Commands) {
+    commands.trigger_targets(
+        ShowRoomDescriptionAction {
+            room: trigger.target(),
+        },
+        trigger.entity,
+    );
+}
+
+fn on_show_room_description_action(
+    trigger: Trigger<ShowRoomDescriptionAction>,
+    room_query: Query<(&Name, &Description, Option<&RoomContents>), With<Room>>,
+    items_query: Query<&Name>,
     mut sender: EventWriter<SendMessageAction>,
 ) {
-    let room = trigger.target();
+    let conn = trigger.target();
 
-    let Ok(conn) = player_query.get(trigger.entity) else {
-        // Not a player
-        return;
-    };
-
-    let Ok((name, description)) = room_query.get(room) else {
+    let Ok((name, description, contents)) = room_query.get(trigger.room) else {
         // Room not loaded
         return;
     };
 
-    sender.println(trigger.entity, name.as_str());
-    sender.println(trigger.entity, &description.0);
+    sender.println(conn, "");
+    sender.print(conn, "\x1b[32m");
+    sender.print(conn, name.as_str());
+    sender.println(conn, "\x1b[0m");
+    sender.println(conn, &description.0);
+
+    if let Some(contents) = contents
+        && !contents.0.is_empty()
+    {
+        sender.println(conn, "");
+        sender.println(conn, "You see here:");
+
+        for item in contents.iter() {
+            let Ok(name) = items_query.get(item) else {
+                continue;
+            };
+            sender.println(conn, name.as_str());
+        }
+    }
+}
+
+fn on_look_command(
+    trigger: Trigger<ExplorationCommandEvent>,
+    mut commands: Commands,
+    room_query: Query<&InRoom>,
+) -> Result {
+    if trigger.command == "look" || trigger.command == "l" {
+        commands.trigger_targets(
+            ShowRoomDescriptionAction {
+                room: room_query.get(trigger.target())?.0,
+            },
+            trigger.target(),
+        );
+    }
+    Ok(())
+}
+
+/// Show room description to target player
+#[derive(Clone, Debug, Reflect, Event)]
+pub struct ShowRoomDescriptionAction {
+    pub room: Entity,
 }
 
 /// Move target entity into a new room
