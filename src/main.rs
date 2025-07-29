@@ -9,7 +9,7 @@ use bevy::{
 use bevy_yarnspinner::prelude::*;
 use libmudtelnet::events::TelnetEvents;
 use player_commands::ExplorationCommandEvent;
-use telnet::{EventWriterTelnetEx, MessageReceived, NewConnection, SendMessage};
+use telnet::{EventWriterTelnetEx, MessageReceived, NewConnection, SendMessageAction};
 
 mod auth;
 mod char;
@@ -59,7 +59,7 @@ fn main() {
         .run();
 }
 
-fn greet_new(mut new_conn: EventReader<NewConnection>, mut sender: EventWriter<SendMessage>) {
+fn greet_new(mut new_conn: EventReader<NewConnection>, mut sender: EventWriter<SendMessageAction>) {
     for conn in new_conn.read() {
         sender.println(conn.entity, "Hello and welcome!");
         sender.ga(conn.entity);
@@ -82,7 +82,7 @@ fn debug_command(trigger: Trigger<ExplorationCommandEvent>, mut world: DeferredW
     let mut events = Vec::new();
 
     for entity in world.iter_entities() {
-        events.push(SendMessage {
+        events.push(SendMessageAction {
             connection: conn,
             data: TelnetEvents::DataSend(libmudtelnet::Parser::escape_iac(format!(
                 "\n\x1b[38;5;1m{}\x1b[0m\n",
@@ -106,7 +106,7 @@ fn debug_command(trigger: Trigger<ExplorationCommandEvent>, mut world: DeferredW
                 }
             }
 
-            events.push(SendMessage {
+            events.push(SendMessageAction {
                 connection: conn,
                 data: TelnetEvents::DataSend(libmudtelnet::Parser::escape_iac(format!(
                     "{}{}\n",
@@ -126,7 +126,7 @@ fn debug_command(trigger: Trigger<ExplorationCommandEvent>, mut world: DeferredW
 
 fn echo_control(
     mut message_event: EventReader<MessageReceived>,
-    mut sender: EventWriter<SendMessage>,
+    mut sender: EventWriter<SendMessageAction>,
 ) {
     for mess in message_event.read() {
         let text = String::from_utf8_lossy(&mess.data);

@@ -2,7 +2,7 @@ use bevy::prelude::*;
 
 use crate::{
     player_commands::ExplorationCommandEvent,
-    telnet::{EventWriterTelnetEx, SendMessage},
+    telnet::{EventWriterTelnetEx, SendMessageAction},
 };
 
 use super::room::InRoom;
@@ -58,7 +58,7 @@ pub struct InExits(Vec<Entity>);
 /// List all exits of current room
 fn exits_command(
     trigger: Trigger<ExplorationCommandEvent>,
-    mut sender: EventWriter<SendMessage>,
+    mut sender: EventWriter<SendMessageAction>,
     room_query: Query<&InRoom>,
     out_exit_query: Query<&OutExits>,
     exit_query: Query<&Exit>,

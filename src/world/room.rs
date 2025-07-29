@@ -3,7 +3,7 @@ use bevy::prelude::*;
 use crate::{
     auth::CharacterLoginEvent,
     misc::{Description, Id},
-    telnet::{Connection, EventWriterTelnetEx, SendMessage},
+    telnet::{Connection, EventWriterTelnetEx, SendMessageAction},
 };
 
 pub struct RoomPlugin;
@@ -56,7 +56,7 @@ fn room_enter_description(
     trigger: Trigger<EnterRoomEvent>,
     player_query: Query<&Connection>,
     room_query: Query<(&Name, &Description), With<Room>>,
-    mut sender: EventWriter<SendMessage>,
+    mut sender: EventWriter<SendMessageAction>,
 ) {
     let room = trigger.target();
 

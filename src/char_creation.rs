@@ -4,7 +4,7 @@ use crate::{
     auth::Username,
     char::{Class, Race},
     database::DatabaseCommandsEx,
-    telnet::{EventWriterTelnetEx, MessageReceived, SendMessage},
+    telnet::{EventWriterTelnetEx, MessageReceived, SendMessageAction},
     util::EntityCommandsEx,
 };
 
@@ -57,7 +57,7 @@ impl CharCreation {
 
 fn intro(
     mut query: Query<(Entity, &mut CharCreationState), Added<CharCreationState>>,
-    mut sender: EventWriter<SendMessage>,
+    mut sender: EventWriter<SendMessageAction>,
 ) {
     for (ent, mut state) in &mut query {
         sender.println(ent, "Welcome!");
@@ -68,7 +68,7 @@ fn intro(
 fn choose_username(
     mut commands: Commands,
     mut query: Query<(Entity, &mut CharCreationState), Changed<CharCreationState>>,
-    mut sender: EventWriter<SendMessage>,
+    mut sender: EventWriter<SendMessageAction>,
 ) {
     for (ent, state) in &mut query {
         if *state != CharCreationState::Username {
@@ -101,7 +101,7 @@ fn choose_username(
 fn choose_password(
     mut commands: Commands,
     query: Query<(Entity, &CharCreationState), Changed<CharCreationState>>,
-    mut sender: EventWriter<SendMessage>,
+    mut sender: EventWriter<SendMessageAction>,
 ) {
     for (ent, state) in &query {
         if *state != CharCreationState::Password {
@@ -116,7 +116,7 @@ fn choose_password(
         commands.entity(ent).observe_once(
             |trigger: Trigger<MessageReceived>,
              mut commands: Commands,
-             mut sender: EventWriter<SendMessage>| {
+             mut sender: EventWriter<SendMessageAction>| {
                 sender.println(trigger.target(), "");
                 sender.print(trigger.target(), "Confirm password: ");
                 sender.ga(trigger.target());
@@ -126,7 +126,7 @@ fn choose_password(
                 commands.entity(trigger.target()).observe_once(
                     move |trigger: Trigger<MessageReceived>,
                           mut query: Query<(&mut CharCreation, &mut CharCreationState)>,
-                          mut sender: EventWriter<SendMessage>| {
+                          mut sender: EventWriter<SendMessageAction>| {
                         let confirm = trigger.event().to_text();
 
                         if let Ok((mut char, mut state)) = query.get_mut(trigger.target()) {
@@ -155,7 +155,7 @@ fn choose_password(
 fn choose_race(
     mut commands: Commands,
     query: Query<(Entity, &CharCreationState), Changed<CharCreationState>>,
-    mut sender: EventWriter<SendMessage>,
+    mut sender: EventWriter<SendMessageAction>,
 ) {
     for (ent, state) in &query {
         if *state != CharCreationState::Race {
@@ -203,7 +203,7 @@ fn choose_race(
 fn choose_class(
     mut commands: Commands,
     query: Query<(Entity, &CharCreationState), Changed<CharCreationState>>,
-    mut sender: EventWriter<SendMessage>,
+    mut sender: EventWriter<SendMessageAction>,
 ) {
     for (ent, state) in &query {
         if *state != CharCreationState::Class {
@@ -244,7 +244,7 @@ fn choose_class(
 fn show_menu(
     mut commands: Commands,
     query: Query<(Entity, &CharCreation, &CharCreationState), Changed<CharCreationState>>,
-    mut sender: EventWriter<SendMessage>,
+    mut sender: EventWriter<SendMessageAction>,
 ) -> Result {
     for (ent, chr, state) in &query {
         if *state != CharCreationState::Menu {

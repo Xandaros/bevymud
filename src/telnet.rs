@@ -22,7 +22,7 @@ impl Plugin for TelnetPlugin {
         app.add_systems(PostUpdate, data_sender);
         app.add_event::<NewConnection>();
         app.add_event::<MessageReceived>();
-        app.add_event::<SendMessage>();
+        app.add_event::<SendMessageAction>();
     }
 }
 
@@ -72,7 +72,7 @@ impl MessageReceived {
 }
 
 #[derive(Event, Clone)]
-pub struct SendMessage {
+pub struct SendMessageAction {
     pub connection: Entity,
     pub data: TelnetEvents,
 }
@@ -121,9 +121,9 @@ pub trait EventWriterTelnetEx {
     }
 }
 
-impl<'w> EventWriterTelnetEx for EventWriter<'w, SendMessage> {
+impl<'w> EventWriterTelnetEx for EventWriter<'w, SendMessageAction> {
     fn send_message(&mut self, conn: Entity, events: TelnetEvents) {
-        self.write(SendMessage {
+        self.write(SendMessageAction {
             connection: conn,
             data: events,
         });
@@ -305,7 +305,7 @@ fn data_handler(
     }
 }
 
-fn data_sender(mut events: EventReader<SendMessage>, mut query: Query<&mut Connection>) {
+fn data_sender(mut events: EventReader<SendMessageAction>, mut query: Query<&mut Connection>) {
     for event in events.read() {
         if let Ok(mut conn) = query.get_mut(event.connection) {
             if let TelnetEvents::Negotiation(TelnetNegotiation { command, option }) = event.data {

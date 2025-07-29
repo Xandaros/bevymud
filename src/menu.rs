@@ -7,7 +7,7 @@ use bevy_yarnspinner::{
 };
 
 use crate::{
-    telnet::{EventWriterTelnetEx, MessageReceived, SendMessage},
+    telnet::{EventWriterTelnetEx, MessageReceived, SendMessageAction},
     util::When,
 };
 
@@ -57,7 +57,7 @@ fn on_enter_menu(
 
 fn on_present_line(
     mut events: EventReader<PresentLineEvent>,
-    mut sender: EventWriter<SendMessage>,
+    mut sender: EventWriter<SendMessageAction>,
     mut query: Query<&mut DialogueRunner, With<InMenu>>,
 ) -> Result {
     for event in events.read() {
@@ -88,7 +88,7 @@ struct WaitingOnInput {
 
 fn handle_echo_command(
     mut events: EventReader<ExecuteCommandEvent>,
-    mut sender: EventWriter<SendMessage>,
+    mut sender: EventWriter<SendMessageAction>,
 ) -> Result {
     for event in events.read() {
         if event.command.name != "echo" {

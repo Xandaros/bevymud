@@ -11,7 +11,7 @@ use crate::{
     database::DatabaseCommandsEx,
     menu::{EnterMenu, MenuLibrary},
     race::Races,
-    telnet::{Connection, EventWriterTelnetEx, NewConnection, SendMessage},
+    telnet::{Connection, EventWriterTelnetEx, NewConnection, SendMessageAction},
 };
 
 pub struct AuthPlugin;
@@ -349,7 +349,7 @@ fn on_print_char_selection_command(
             move |In((conn, chars)): In<(Entity, Option<Vec<(String, u64, u64)>>)>,
                   classes: Res<Classes>,
                   races: Res<Races>,
-                  mut sender: EventWriter<SendMessage>,
+                  mut sender: EventWriter<SendMessageAction>,
                   mut query: Query<&mut DialogueRunner, With<Connection>>|
                   -> Result {
                 let mut runner = query.get_mut(conn)?;
