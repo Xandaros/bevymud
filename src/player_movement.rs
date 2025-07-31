@@ -50,7 +50,9 @@ fn move_command(
                 let target_room_ent = in_exit_query.get(exit_ent)?.0;
                 commands.trigger_targets(
                     MoveRoomAction {
+                        old_room: Some(room),
                         new_room: target_room_ent,
+                        direction: Some(exit.direction.clone()),
                     },
                     conn,
                 );

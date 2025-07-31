@@ -16,6 +16,8 @@ impl Plugin for RoomPlugin {
             .add_observer(on_move_room_action)
             .add_observer(on_show_room_description_action)
             .add_observer(on_look_command)
+            .add_observer(on_room_broadcast_action)
+            .add_observer(room_enter_broadcast)
             .add_observer(room_enter_description);
     }
 }
@@ -38,21 +40,26 @@ fn on_login(
     };
 
     let mut entity = commands.entity(trigger.target());
-    entity.insert(InRoom(room));
     entity.insert(Name::new(trigger.name.clone()));
+
     commands.trigger_targets(
-        EnterRoomEvent {
-            entity: trigger.target(),
+        MoveRoomAction {
+            old_room: None,
+            new_room: room,
+            direction: None,
         },
-        room,
+        trigger.target(),
     );
 }
 
 fn on_move_room_action(trigger: Trigger<MoveRoomAction>, mut commands: Commands) -> Result {
     let target = trigger.target();
 
-    commands.entity(target).insert(InRoom(trigger.new_room));
+    if let Some(old_room) = trigger.old_room {
+        commands.trigger_targets(ExitRoomEvent { entity: target }, old_room);
+    }
     commands.trigger_targets(EnterRoomEvent { entity: target }, trigger.new_room);
+    commands.entity(target).insert(InRoom(trigger.new_room));
 
     Ok(())
 }
@@ -64,6 +71,28 @@ fn room_enter_description(trigger: Trigger<EnterRoomEvent>, mut commands: Comman
         },
         trigger.entity,
     );
+}
+
+fn room_enter_broadcast(
+    trigger: Trigger<EnterRoomEvent>,
+    query: Query<&RoomContents>,
+    player_filter: Query<(), With<Connection>>,
+    name_query: Query<&Name>,
+    mut sender: EventWriter<SendMessageAction>,
+) {
+    let Ok(name) = name_query.get(trigger.entity) else {
+        return;
+    };
+
+    let Ok(contents) = query.get(trigger.target()) else {
+        return;
+    };
+
+    for entry in contents.iter() {
+        if player_filter.contains(entry) {
+            sender.println(entry, &format!("{name} entered."));
+        }
+    }
 }
 
 fn on_show_room_description_action(
@@ -116,6 +145,24 @@ fn on_look_command(
     Ok(())
 }
 
+fn on_room_broadcast_action(
+    trigger: Trigger<RoomBroadcastAction>,
+    mut sender: EventWriter<SendMessageAction>,
+    contents_query: Query<&RoomContents>,
+    player_filter: Query<(), With<Connection>>,
+) -> Result {
+    let room = trigger.target();
+    let message = &trigger.message;
+
+    for content in contents_query.get(room)?.iter() {
+        if player_filter.contains(content) {
+            sender.print(content, message);
+        }
+    }
+
+    Ok(())
+}
+
 /// Show room description to target player
 #[derive(Clone, Debug, Reflect, Event)]
 pub struct ShowRoomDescriptionAction {
@@ -125,7 +172,17 @@ pub struct ShowRoomDescriptionAction {
 /// Move target entity into a new room
 #[derive(Clone, Debug, Reflect, Event)]
 pub struct MoveRoomAction {
+    pub old_room: Option<Entity>,
     pub new_room: Entity,
+    pub direction: Option<String>,
+}
+
+/// Event that fires after a something exits a room
+/// Event target is the room
+#[derive(Clone, Copy, Reflect, Debug, Event)]
+pub struct ExitRoomEvent {
+    /// The entity entering the room
+    pub entity: Entity,
 }
 
 /// Event that fires after a something enters a room
@@ -134,6 +191,13 @@ pub struct MoveRoomAction {
 pub struct EnterRoomEvent {
     /// The entity entering the room
     pub entity: Entity,
+}
+
+/// Send a message to every player in a room
+/// Event target is the room
+#[derive(Clone, Reflect, Debug, Event)]
+pub struct RoomBroadcastAction {
+    pub message: String,
 }
 
 #[derive(Copy, Clone, Debug, Reflect, Component)]
